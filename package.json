@@ -1,0 +1,21 @@
+{
+  "name": "acorn",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Visual programming environment for Hemlock",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "fetch-wasm": "node scripts/fetch-wasm.mjs"
+  },
+  "dependencies": {
+    "blockly": "^12.4.1",
+    "idb-keyval": "^6.2.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1"
+  }
+}
