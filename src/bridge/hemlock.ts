@@ -26,6 +26,7 @@ export async function loadHemlock(): Promise<HemlockExports> {
 
   // The prebuilt hemlock.js module (from Hemlock GitHub releases) exposes an
   // init function that loads the .wasm file and returns the exports.
+  // @ts-expect-error — dynamic WASM module loaded from public/wasm at runtime
   const mod = await import("/wasm/hemlock.js");
   instance = await mod.default();
   return instance!;

@@ -197,9 +197,10 @@ function compileValue(
   const connectedBlock = input.connection?.targetBlock();
   if (!connectedBlock) {
     // Check for shadow blocks
-    const shadowBlock = input.connection?.getShadowState();
-    if (shadowBlock) {
-      return compileShadow(shadowBlock);
+    const shadowState = input.connection?.getShadowState();
+    if (shadowState) {
+      // getShadowState returns blocks.State which has type and fields
+      return compileShadow(shadowState);
     }
     return defaultExpr;
   }
@@ -208,7 +209,7 @@ function compileValue(
 }
 
 /** Compile a shadow block state into an expression. */
-function compileShadow(shadow: Blockly.serialization.blocks.ConnectionState): Expression {
+function compileShadow(shadow: Blockly.serialization.blocks.State): Expression {
   if (shadow.type === "math_number_input" && shadow.fields) {
     const numField = shadow.fields as Record<string, unknown>;
     return num(Number(numField["NUM"]) || 0);
@@ -279,7 +280,7 @@ function compileExpression(block: Blockly.Block): Expression {
     case "math_function":
       return {
         type: "math_fn",
-        fn: block.getFieldValue("FN") as Expression & { type: "math_fn" } extends { fn: infer F } ? F : never,
+        fn: block.getFieldValue("FN") as "abs" | "round" | "floor" | "ceil" | "sqrt" | "sin" | "cos",
         arg: compileValue(block, "ARG", num(0)),
       };
 

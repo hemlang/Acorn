@@ -16,7 +16,7 @@ export class Toolbar {
   private runBtn: HTMLButtonElement;
   private stopBtn: HTMLButtonElement;
 
-  constructor(private callbacks: ToolbarCallbacks) {
+  constructor(callbacks: ToolbarCallbacks) {
     this.element = document.createElement("div");
     this.element.className = "acorn-toolbar";
 

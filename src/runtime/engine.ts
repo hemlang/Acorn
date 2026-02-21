@@ -14,7 +14,6 @@ import {
   GameInstance,
   GameState,
   CompiledSprite,
-  CompiledHandler,
   KeyboardState,
 } from "./types.js";
 import { InputManager } from "./input.js";
