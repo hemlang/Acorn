@@ -22,7 +22,7 @@ npm run fetch-wasm          # latest release
 npm run fetch-wasm v1.9.0   # specific version
 ```
 
-This downloads `hemlock.js` and `hemlock.wasm` into `public/wasm/`. The app runs without the binary (block editing and code preview work), but game execution requires it.
+This downloads `hemlock.js` and `hemlock.wasm` into `public/wasm/`. Set `GITHUB_TOKEN` to authenticate the download (higher rate limits). The app is fully functional without the binary — when it is absent, game execution falls back to the built-in TypeScript interpreter.
 
 ## Architecture
 
@@ -32,9 +32,9 @@ Visual Blocks → Block AST → Hemlock Source → hemlock_context_eval() → Ou
                           (Code Preview panel)
 ```
 
-The game runtime lives entirely in TypeScript. Hemlock only runs user-authored event handler logic. Per frame, the JS engine serializes game state, passes it to the WASM interpreter, and reads back the result.
+The game runtime lives entirely in TypeScript. Hemlock only runs user-authored event handler logic. At game start the engine compiles each event handler's blocks to a Hemlock script (`hemlock_compile_script`); per frame it serializes instance state into the interpreter context, runs the handler (`hemlock_run_script`), and reads the mutated state back.
 
-For development without the WASM binary, a built-in TypeScript interpreter executes compiled block actions directly.
+When the WASM binary is absent (or any script fails to compile), the engine automatically falls back to a built-in TypeScript interpreter that executes compiled block actions directly — same blocks, same behavior.
 
 ### Project Structure
 

@@ -26,10 +26,34 @@ export async function loadHemlock(): Promise<HemlockExports> {
 
   // The prebuilt hemlock.js module (from Hemlock GitHub releases) exposes an
   // init function that loads the .wasm file and returns the exports.
-  // @ts-expect-error — dynamic WASM module loaded from public/wasm at runtime
-  const mod = await import("/wasm/hemlock.js");
+  // The path is built at runtime so Vite/Rollup leave the import dynamic;
+  // the file lives in public/wasm and is not part of the bundle.
+  const modulePath = "/wasm/hemlock.js";
+  const mod = await import(/* @vite-ignore */ modulePath);
   instance = await mod.default();
   return instance!;
+}
+
+/**
+ * Load the Hemlock WASM interpreter if the binary is present, or return
+ * null without throwing. Used by the engine to decide between WASM
+ * execution and the built-in TypeScript interpreter.
+ */
+export async function tryLoadHemlock(): Promise<HemlockExports | null> {
+  if (instance) return instance;
+  try {
+    // Probe before importing: the Vite dev server answers missing paths
+    // with the SPA index.html (status 200), so check the content type too.
+    const probe = await fetch("/wasm/hemlock.js", { method: "HEAD" });
+    if (!probe.ok) return null;
+    const type = probe.headers.get("content-type") ?? "";
+    if (type.includes("text/html")) return null;
+
+    return await loadHemlock();
+  } catch (err) {
+    console.warn("Hemlock WASM unavailable, using built-in interpreter:", err);
+    return null;
+  }
 }
 
 export function getHemlock(): HemlockExports {
