@@ -10,7 +10,6 @@
  * Files are written to public/wasm/hemlock.{js,wasm}.
  */
 
-import { execSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,13 +21,18 @@ const REPO = "hemlang/hemlock";
 
 const version = process.argv[2] || "latest";
 
+// Set GITHUB_TOKEN to authenticate (higher rate limits, private repos).
+const authHeaders = process.env.GITHUB_TOKEN
+  ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` }
+  : {};
+
 async function fetchRelease() {
   const apiUrl =
     version === "latest"
       ? `https://api.github.com/repos/${REPO}/releases/latest`
       : `https://api.github.com/repos/${REPO}/releases/tags/${version}`;
 
-  const res = await fetch(apiUrl);
+  const res = await fetch(apiUrl, { headers: authHeaders });
   if (!res.ok) {
     throw new Error(`GitHub API returned ${res.status}: ${await res.text()}`);
   }
@@ -37,7 +41,7 @@ async function fetchRelease() {
 
 async function downloadAsset(url, dest) {
   const res = await fetch(url, {
-    headers: { Accept: "application/octet-stream" },
+    headers: { Accept: "application/octet-stream", ...authHeaders },
   });
   if (!res.ok) throw new Error(`Failed to download ${url}: ${res.status}`);
   const buf = Buffer.from(await res.arrayBuffer());

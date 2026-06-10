@@ -14,11 +14,14 @@ import {
   GameInstance,
   GameState,
   CompiledSprite,
+  CompiledHandler,
   KeyboardState,
 } from "./types.js";
 import { InputManager } from "./input.js";
 import { Renderer } from "./renderer.js";
 import { executeActions } from "./interpreter.js";
+import { HemlockRunner } from "./hemlock-runner.js";
+import { tryLoadHemlock } from "../bridge/hemlock.js";
 import { compileWorkspace } from "../editor/compiler.js";
 import { BlockWorkspace } from "../editor/workspace.js";
 
@@ -39,6 +42,7 @@ export class GameEngine {
   private animFrameId: number = 0;
   private running: boolean = false;
   private callbacks: EngineCallbacks;
+  private hemlockRunner: HemlockRunner | null = null;
 
   constructor(canvas: HTMLCanvasElement, callbacks: EngineCallbacks) {
     this.canvas = canvas;
@@ -90,6 +94,26 @@ export class GameEngine {
       }
     }
 
+    // Prefer the Hemlock WASM interpreter when the binary is present;
+    // otherwise event handlers run through the built-in TS interpreter.
+    this.hemlockRunner = null;
+    const hemlock = await tryLoadHemlock();
+    if (hemlock) {
+      this.hemlockRunner = HemlockRunner.create(hemlock, [
+        ...this.compiledSprites.values(),
+      ]);
+      if (!this.hemlockRunner) {
+        console.warn(
+          "Hemlock script compilation failed; falling back to the built-in interpreter."
+        );
+      }
+    }
+    console.info(
+      `Acorn engine: executing via ${
+        this.hemlockRunner ? "Hemlock WASM interpreter" : "built-in TypeScript interpreter"
+      }`
+    );
+
     // Set up current room (first room)
     this.currentRoom = project.rooms[0] || null;
     if (!this.currentRoom) {
@@ -128,6 +152,8 @@ export class GameEngine {
       this.animFrameId = 0;
     }
     this.input.detach();
+    this.hemlockRunner?.dispose();
+    this.hemlockRunner = null;
   }
 
   isRunning(): boolean {
@@ -183,10 +209,10 @@ export class GameEngine {
       const compiled = this.compiledSprites.get(instance.spriteId);
       if (!compiled) continue;
 
-      for (const handler of compiled.handlers) {
+      for (let i = 0; i < compiled.handlers.length; i++) {
+        const handler = compiled.handlers[i];
         if (handler.event !== event) continue;
-        const output = executeActions(handler.actions, instance, this.state);
-        this.handleOutput(output);
+        this.runHandler(compiled.spriteId, i, handler, instance);
       }
     }
   }
@@ -198,7 +224,8 @@ export class GameEngine {
       const compiled = this.compiledSprites.get(instance.spriteId);
       if (!compiled) continue;
 
-      for (const handler of compiled.handlers) {
+      for (let i = 0; i < compiled.handlers.length; i++) {
+        const handler = compiled.handlers[i];
         if (!handler.key) continue;
 
         let shouldFire = false;
@@ -215,11 +242,41 @@ export class GameEngine {
         }
 
         if (shouldFire) {
-          const output = executeActions(handler.actions, instance, this.state);
-          this.handleOutput(output);
+          this.runHandler(compiled.spriteId, i, handler, instance);
         }
       }
     }
+  }
+
+  /**
+   * Execute one event handler for one instance, routing through the
+   * Hemlock WASM runner when active, otherwise the TS interpreter.
+   */
+  private runHandler(
+    spriteId: string,
+    handlerIndex: number,
+    handler: CompiledHandler,
+    instance: GameInstance
+  ): void {
+    if (this.hemlockRunner) {
+      const result = this.hemlockRunner.runHandler(
+        spriteId,
+        handlerIndex,
+        instance
+      );
+      if (result) {
+        if (result.error) {
+          this.callbacks.onError(`Error: ${result.error}`);
+        }
+        this.state.pendingCreations.push(...result.creations);
+        this.handleOutput(result.output);
+        return;
+      }
+      // No compiled script for this handler — fall through to the TS path.
+    }
+
+    const output = executeActions(handler.actions, instance, this.state);
+    this.handleOutput(output);
   }
 
   private createInstance(
